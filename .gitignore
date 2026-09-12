@@ -1,0 +1,12 @@
+private/
+.aws/
+.kube/
+.env
+.env.*
+*.pem
+*.key
+**/.terraform/
+*.tfstate*
+*.tfvars
+*.tfvars.json
+*.tfplan

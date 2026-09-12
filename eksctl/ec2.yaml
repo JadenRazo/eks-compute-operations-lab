@@ -1,0 +1,59 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eks-compute-lab-ec2
+  region: us-east-1
+  version: "1.36"
+  tags:
+    Project: eks-compute-lab
+    Environment: lab
+
+vpc:
+  id: vpc-0cc13129c2e0c7337
+  subnets:
+    private:
+      us-east-1a:
+        id: subnet-0426017a260f857cf
+      us-east-1b:
+        id: subnet-09ed91cd610169615
+    public:
+      us-east-1a:
+        id: subnet-0f227d028bf0cbf3f
+      us-east-1b:
+        id: subnet-024db7d8c0e61639e
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+  publicAccessCIDRs:
+    - 174.129.211.253/32
+
+iam:
+  withOIDC: true
+
+accessConfig:
+  authenticationMode: API
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["audit", "authenticator"]
+    logRetentionInDays: 1
+
+managedNodeGroups:
+  - name: workers
+    instanceType: t3.medium
+    amiFamily: AmazonLinux2023
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 2
+    privateNetworking: true
+    volumeType: gp3
+    volumeSize: 20
+    volumeEncrypted: true
+    disableIMDSv1: true
+    disablePodIMDS: true
+    ssh:
+      allow: false
+    tags:
+      Project: eks-compute-lab
+      Environment: lab
