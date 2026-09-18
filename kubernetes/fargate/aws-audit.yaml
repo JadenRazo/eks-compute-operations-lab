@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: aws-audit
+  namespace: ops-lab
+  labels:
+    app: aws-audit
+    compute: lab
+spec:
+  serviceAccountName: aws-audit
+  automountServiceAccountToken: false
+  restartPolicy: Never
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+
+  containers:
+    - name: audit
+      image: public.ecr.aws/aws-cli/aws-cli@sha256:b9c4a4fc34cb699c90776cb1c7d6d7152d95ca5b3f856adf908d329b2c9f7222
+      command: ["/bin/sh", "-c"]
+      args: ["sleep 1800"]
+      workingDir: /tmp
+
+      env:
+        - name: HOME
+          value: /tmp
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_DEFAULT_REGION
+          value: us-east-1
+        - name: AWS_EC2_METADATA_DISABLED
+          value: "true"
+        - name: AWS_PAGER
+          value: ""
+
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: 250m
+          memory: 256Mi
+
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+
+  volumes:
+    - name: tmp
+      emptyDir:
+        sizeLimit: 32Mi
