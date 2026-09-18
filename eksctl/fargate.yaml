@@ -1,0 +1,62 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eks-compute-lab-fargate
+  region: us-east-1
+  version: "1.36"
+  tags:
+    Project: eks-compute-lab
+    Environment: lab
+
+vpc:
+  id: vpc-0cc13129c2e0c7337
+  subnets:
+    private:
+      us-east-1a:
+        id: subnet-0426017a260f857cf
+      us-east-1b:
+        id: subnet-09ed91cd610169615
+    public:
+      us-east-1a:
+        id: subnet-0f227d028bf0cbf3f
+      us-east-1b:
+        id: subnet-024db7d8c0e61639e
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+  publicAccessCIDRs:
+    - 174.129.211.253/32
+
+iam:
+  withOIDC: true
+
+accessConfig:
+  authenticationMode: API
+
+cloudWatch:
+  clusterLogging:
+    enableTypes:
+      - audit
+      - authenticator
+    logRetentionInDays: 1
+
+nodeGroups: []
+managedNodeGroups: []
+
+fargateProfiles:
+  - name: system
+    selectors:
+      - namespace: kube-system
+    subnets:
+      - subnet-0426017a260f857cf
+      - subnet-09ed91cd610169615
+
+  - name: applications
+    selectors:
+      - namespace: ops-lab
+        labels:
+          compute: lab
+    subnets:
+      - subnet-0426017a260f857cf
+      - subnet-09ed91cd610169615
