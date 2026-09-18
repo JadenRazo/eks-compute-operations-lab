@@ -14,3 +14,8 @@ patches:
     patch: |-
       - op: remove
         path: /spec/template/spec/topologySpreadConstraints
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests
+        value:
+          cpu: 250m
+          memory: 128Mi
