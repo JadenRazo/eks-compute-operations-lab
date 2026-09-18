@@ -57,3 +57,17 @@ No credential values or fixture contents were required in the public screenshots
 ## Cleanup
 
 The temporary audit Pod was deleted after preserving the evidence. Its manifests and the ServiceAccount configuration were retained for reproducibility.
+
+## Fargate execution-role review
+
+Reviewed the Pod execution role referenced by the `applications` Fargate profile.
+
+The trust policy allows `sts:AssumeRole` by `eks-fargate-pods.amazonaws.com`. Its `aws:SourceArn` condition restricts the source to Fargate profiles in `eks-compute-lab-fargate`, in the lab account and `us-east-1`.
+
+The role has one attached managed policy, `AmazonEKSFargatePodExecutionRolePolicy`, and no inline policies.
+
+This matches AWS’s documented execution-role configuration. No remediation was identified in the trust and policy-attachment checks performed.
+
+The execution role is separate from `eks-lab-s3-audit-fargate`, which supplies the audit container’s S3 permissions through IRSA.
+
+This finding covers the inspected role, not a comprehensive review of every identity in the cluster.
