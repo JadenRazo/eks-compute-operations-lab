@@ -5,5 +5,10 @@ terraform {
     region       = "us-east-1"
     encrypt      = true
     use_lockfile = true
+
+    assume_role = {
+      role_arn     = "arn:aws:iam::919651863281:role/eks-lab-terraform-state"
+      session_name = "terraform-network-state"
+    }
   }
 }
