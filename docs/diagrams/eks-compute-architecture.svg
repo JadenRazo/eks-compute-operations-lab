@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1380" role="img" aria-labelledby="title desc">
+<title id="title">One workload, two EKS compute models</title><desc id="desc">Historical deployment view | us-east-1 | EC2 and Fargate were exercised in separate cluster phases.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#64748b"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .edge{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}</style>
+<rect width="1200" height="1380" fill="white"/>
+<text x="40" y="42" font-size="13" fill="#475569" font-weight="700" text-anchor="start">EKS COMPUTE OPERATIONS LAB  /  JADEN RAZO</text>
+<text x="40" y="88" font-size="32" fill="#172b35" font-weight="700" text-anchor="start">One workload, two EKS compute models</text>
+<text x="40" y="119" font-size="16" fill="#475569" font-weight="400" text-anchor="start">Historical deployment view | us-east-1 | EC2 and Fargate were exercised in separate cluster phases.</text>
+<rect x="40" y="145" width="1120" height="74" rx="12" fill="#fff7ed" stroke="#c2410c"/>
+<text x="60" y="174" font-size="18" fill="#172b35" font-weight="700" text-anchor="start">Deployment lifecycle: EC2 phase → teardown → Fargate phase → teardown</text>
+<text x="60" y="199" font-size="16" fill="#475569" font-weight="400" text-anchor="start">Both lab clusters and the lab NAT gateway were removed. This diagram does not show a live deployment.</text>
+<text x="40" y="260" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">01  MANAGEMENT ACCESS — repeated for each cluster</text>
+<rect x="40" y="280" width="330" height="100" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="58" y="309" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">OpsBox EC2</text>
+<text x="58" y="335" font-size="15" fill="#475569" font-weight="400" text-anchor="start">eksctl + kubectl</text>
+<text x="58" y="357" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Separate VPC; public API access</text>
+<rect x="435" y="280" width="330" height="100" rx="12" fill="#eff6ff" stroke="#2563eb"/>
+<text x="453" y="309" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">EKS API / control plane</text>
+<text x="453" y="335" font-size="15" fill="#475569" font-weight="400" text-anchor="start">AWS-managed control plane</text>
+<text x="453" y="357" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Public + private endpoints</text>
+<rect x="830" y="280" width="330" height="100" rx="12" fill="#ecfdf5" stroke="#047857"/>
+<text x="848" y="309" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">CloudWatch Logs</text>
+<text x="848" y="335" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Audit + authenticator logs</text>
+<text x="848" y="357" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Configured retention: one day</text>
+<path class="edge" d="M373 330.0 H430"/>
+<path class="edge" d="M768 330.0 H825"/>
+<text x="40" y="408" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Public endpoint allowlist: OpsBox egress /32. Private endpoints serve connectivity inside the lab VPC.</text>
+<text x="40" y="455" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">02  EC2 PHASE — two t3.medium managed workers in private subnets</text>
+<rect x="40" y="477" width="330" height="112" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="58" y="506" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Service observer</text>
+<text x="58" y="532" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Internal HTTP probes</text>
+<text x="58" y="554" font-size="15" fill="#475569" font-weight="400" text-anchor="start">GET /readyz; timestamped OK / FAIL</text>
+<rect x="435" y="477" width="330" height="112" rx="12" fill="#eff6ff" stroke="#2563eb"/>
+<text x="453" y="506" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">inventory-status Service</text>
+<text x="453" y="532" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Namespace: ops-lab</text>
+<text x="453" y="554" font-size="15" fill="#475569" font-weight="400" text-anchor="start">ClusterIP; selects application Pods</text>
+<rect x="830" y="477" width="330" height="112" rx="12" fill="#eff6ff" stroke="#2563eb"/>
+<text x="848" y="506" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Application: two replicas</text>
+<text x="848" y="532" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Scheduled on the EC2 worker pool</text>
+<text x="848" y="554" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Non-root; readiness + liveness</text>
+<path class="edge" d="M373 533.0 H430"/>
+<path class="edge" d="M768 533.0 H825"/>
+<text x="40" y="618" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Exercises: broken readiness, Service selector mismatch, and node drain with a PodDisruptionBudget.</text>
+<text x="40" y="641" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Observed limitation: replicas were co-located during maintenance; two nodes did not guarantee replica spread.</text>
+<text x="40" y="694" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">03  FARGATE PHASE — profile-selected Pods in private subnets</text>
+<rect x="40" y="716" width="330" height="112" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="58" y="745" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Service observer</text>
+<text x="58" y="771" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Internal HTTP probes</text>
+<text x="58" y="793" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Scheduled on Fargate</text>
+<rect x="435" y="716" width="330" height="112" rx="12" fill="#eff6ff" stroke="#2563eb"/>
+<text x="453" y="745" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">inventory-status Service</text>
+<text x="453" y="771" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Same application access pattern</text>
+<text x="453" y="793" font-size="15" fill="#475569" font-weight="400" text-anchor="start">ClusterIP; selects application Pods</text>
+<rect x="830" y="716" width="330" height="112" rx="12" fill="#eff6ff" stroke="#2563eb"/>
+<text x="848" y="745" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Application: two replicas</text>
+<text x="848" y="771" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Profile namespace: ops-lab</text>
+<text x="848" y="793" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Required label: compute=lab</text>
+<path class="edge" d="M373 772.0 H430"/>
+<path class="edge" d="M768 772.0 H825"/>
+<text x="40" y="857" font-size="15" fill="#475569" font-weight="400" text-anchor="start">A separate system profile selected kube-system. Profile mismatch blocked new application Pod placement.</text>
+<text x="40" y="880" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Two configured private subnets do not establish that application replicas were evenly distributed across AZs.</text>
+<text x="40" y="933" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">04  SHARED DEPLOYMENT NETWORK — outbound path, separate from the internal Service request</text>
+<rect x="40" y="955" width="250" height="100" rx="12" fill="#fff7ed" stroke="#c2410c"/>
+<text x="58" y="984" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Private subnets</text>
+<text x="58" y="1010" font-size="15" fill="#475569" font-weight="400" text-anchor="start">10.80.10.0/24 · AZ a</text>
+<text x="58" y="1032" font-size="15" fill="#475569" font-weight="400" text-anchor="start">10.80.11.0/24 · AZ b</text>
+<rect x="330" y="955" width="250" height="100" rx="12" fill="#fff7ed" stroke="#c2410c"/>
+<text x="348" y="984" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">One zonal NAT</text>
+<text x="348" y="1010" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Public subnet in AZ a</text>
+<text x="348" y="1032" font-size="15" fill="#475569" font-weight="400" text-anchor="start">10.80.0.0/24</text>
+<rect x="620" y="955" width="250" height="100" rx="12" fill="#fff7ed" stroke="#c2410c"/>
+<text x="638" y="984" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Internet gateway</text>
+<text x="638" y="1010" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Lab VPC: 10.80.0.0/16</text>
+<text x="638" y="1032" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Public subnet default route</text>
+<rect x="910" y="955" width="250" height="100" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="928" y="984" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Public endpoints</text>
+<text x="928" y="1010" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Image registries and</text>
+<text x="928" y="1032" font-size="15" fill="#475569" font-weight="400" text-anchor="start">required AWS endpoints</text>
+<path class="edge" d="M293 1005.0 H325"/>
+<path class="edge" d="M583 1005.0 H615"/>
+<path class="edge" d="M873 1005.0 H905"/>
+<text x="40" y="1084" font-size="15" fill="#475569" font-weight="400" text-anchor="start">A second public subnet (10.80.1.0/24, AZ b) existed. One NAT was a lab cost / availability tradeoff.</text>
+<text x="40" y="1136" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">05  WORKLOAD ACCESS AUDIT — exercised on both compute models</text>
+<rect x="40" y="1158" width="330" height="100" rx="12" fill="#f5f3ff" stroke="#7c3aed"/>
+<text x="58" y="1187" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">aws-audit Pod / account</text>
+<text x="58" y="1213" font-size="15" fill="#475569" font-weight="400" text-anchor="start">ServiceAccount: ops-lab/aws-audit</text>
+<text x="58" y="1235" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Projected identity token</text>
+<rect x="435" y="1158" width="330" height="100" rx="12" fill="#f5f3ff" stroke="#7c3aed"/>
+<text x="453" y="1187" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">IAM role through IRSA</text>
+<text x="453" y="1213" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Cluster-specific OIDC trust</text>
+<text x="453" y="1235" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Role credentials for the workload</text>
+<rect x="830" y="1158" width="330" height="100" rx="12" fill="#ecfdf5" stroke="#047857"/>
+<text x="848" y="1187" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Synthetic S3 fixtures</text>
+<text x="848" y="1213" font-size="15" fill="#475569" font-weight="400" text-anchor="start">allowed/* reads permitted</text>
+<text x="848" y="1235" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Unrelated reads + writes denied</text>
+<path class="edge" d="M373 1208.0 H430"/>
+<path class="edge" d="M768 1208.0 H825"/>
+<text x="40" y="1290" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Fargate Pod execution role: infrastructure duties. Workload S3 access: separate IRSA role.</text>
+<text x="40" y="1345" font-size="13" fill="#475569" font-weight="400" text-anchor="start">SCOPE: independent lab • logical paths; return traffic omitted • resource IDs and account IDs omitted</text>
+</svg>

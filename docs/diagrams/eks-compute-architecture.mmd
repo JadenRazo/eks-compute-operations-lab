@@ -1,0 +1,33 @@
+flowchart LR
+  ops["OpsBox EC2<br/>eksctl + kubectl<br/>Separate VPC; public API access"]:::neutral
+  api["EKS API / control plane<br/>AWS-managed control plane<br/>Public + private endpoints"]:::compute
+  logs["CloudWatch Logs<br/>Audit + authenticator logs<br/>Configured retention: one day"]:::data
+  eo["Service observer<br/>Internal HTTP probes<br/>GET /readyz; timestamped OK / FAIL"]:::neutral
+  es["inventory-status Service<br/>Namespace: ops-lab<br/>ClusterIP; selects application Pods"]:::compute
+  ep["Application: two replicas<br/>Scheduled on the EC2 worker pool<br/>Non-root; readiness + liveness"]:::compute
+  fo["Service observer<br/>Internal HTTP probes<br/>Scheduled on Fargate"]:::neutral
+  fs["inventory-status Service<br/>Same application access pattern<br/>ClusterIP; selects application Pods"]:::compute
+  fp["Application: two replicas<br/>Profile namespace: ops-lab<br/>Required label: compute=lab"]:::compute
+  priv["Private subnets<br/>10.80.10.0/24 · AZ a<br/>10.80.11.0/24 · AZ b"]:::network
+  nat["One zonal NAT<br/>Public subnet in AZ a<br/>10.80.0.0/24"]:::network
+  igw["Internet gateway<br/>Lab VPC: 10.80.0.0/16<br/>Public subnet default route"]:::network
+  ext["Public endpoints<br/>Image registries and<br/>required AWS endpoints"]:::neutral
+  sa["aws-audit Pod / account<br/>ServiceAccount: ops-lab/aws-audit<br/>Projected identity token"]:::identity
+  irsa["IAM role through IRSA<br/>Cluster-specific OIDC trust<br/>Role credentials for the workload"]:::identity
+  s3["Synthetic S3 fixtures<br/>allowed/* reads permitted<br/>Unrelated reads + writes denied"]:::data
+  ops -->|"management API"| api
+  api -->|"control-plane logs"| logs
+  eo -->|"HTTP request"| es
+  es -->|"eligible backend"| ep
+  fo -->|"HTTP request"| fs
+  fs -->|"eligible backend"| fp
+  priv -->|"default route"| nat
+  nat -->|"outbound"| igw
+  igw -->|"outbound"| ext
+  sa -->|"STS web identity"| irsa
+  irsa -->|"S3 authorization"| s3
+  classDef neutral fill:#f8fafc,stroke:#94a3b8,color:#172b35
+  classDef compute fill:#eff6ff,stroke:#2563eb,color:#172b35
+  classDef identity fill:#f5f3ff,stroke:#7c3aed,color:#172b35
+  classDef data fill:#ecfdf5,stroke:#047857,color:#172b35
+  classDef network fill:#fff7ed,stroke:#c2410c,color:#172b35

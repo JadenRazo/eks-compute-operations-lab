@@ -1,0 +1,20 @@
+flowchart LR
+  nr["terraform/network<br/>Backend assumes the state role<br/>Network resources use the provider"]:::neutral
+  role["eks-lab-terraform-state<br/>Trusts the OpsBox role<br/>State: Get / Put; lock: Get / Put / Delete"]:::identity
+  ns["Network state in S3<br/>network/terraform.tfstate<br/>network/terraform.tfstate.tflock"]:::data
+  np["AWS provider on OpsBox<br/>Used by terraform/network<br/>AdministratorAccess remains"]:::identity
+  net["14 imported network resources<br/>VPC, four subnets, internet gateway, three route tables,<br/>public default route, and four subnet associations."]:::network
+  br["terraform/bootstrap<br/>AWS provider uses OpsBox role<br/>Imports preserve existing settings"]:::neutral
+  boot["Nine imported bootstrap resources<br/>Bucket + five S3 configuration resources;<br/>network-backend IAM role, policy, and their attachment."]:::data
+  bb["Bootstrap backend<br/>Uses OpsBox credentials directly<br/>Local state migrated to S3"]:::identity
+  bs["Bootstrap state in the same S3 bucket<br/>bootstrap/terraform.tfstate<br/>bootstrap/terraform.tfstate.tflock"]:::data
+  nr -->|"backend AssumeRole"| role
+  role -->|"scoped object access"| ns
+  np -->|"AWS provider operations"| net
+  br -->|"AWS provider operations"| boot
+  bb -->|"state + lock access"| bs
+  classDef neutral fill:#f8fafc,stroke:#94a3b8,color:#172b35
+  classDef compute fill:#eff6ff,stroke:#2563eb,color:#172b35
+  classDef identity fill:#f5f3ff,stroke:#7c3aed,color:#172b35
+  classDef data fill:#ecfdf5,stroke:#047857,color:#172b35
+  classDef network fill:#fff7ed,stroke:#c2410c,color:#172b35

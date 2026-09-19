@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1260" role="img" aria-labelledby="title desc">
+<title id="title">Terraform ownership and state access</title><desc id="desc">Retained infrastructure | two Terraform roots | separate state and lock objects in one S3 bucket.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="#64748b"/></marker></defs>
+<style>text{font-family:Arial,Helvetica,sans-serif} .edge{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}</style>
+<rect width="1200" height="1260" fill="white"/>
+<text x="40" y="42" font-size="13" fill="#475569" font-weight="700" text-anchor="start">EKS COMPUTE OPERATIONS LAB  /  JADEN RAZO</text>
+<text x="40" y="88" font-size="32" fill="#172b35" font-weight="700" text-anchor="start">Terraform ownership and state access</text>
+<text x="40" y="119" font-size="16" fill="#475569" font-weight="400" text-anchor="start">Retained infrastructure | two Terraform roots | separate state and lock objects in one S3 bucket.</text>
+<rect x="40" y="145" width="1120" height="74" rx="12" fill="#fff7ed" stroke="#c2410c"/>
+<text x="60" y="174" font-size="18" fill="#172b35" font-weight="700" text-anchor="start">Current administrator exception: the OpsBox role still has AdministratorAccess</text>
+<text x="60" y="199" font-size="16" fill="#475569" font-weight="400" text-anchor="start">Assuming a narrower network-backend role scopes that session; it does not remove direct administrator access.</text>
+<text x="40" y="262" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">01  NETWORK BACKEND — a dedicated role for state access</text>
+<rect x="40" y="285" width="330" height="120" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="58" y="314" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">terraform/network</text>
+<text x="58" y="340" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Backend assumes the state role</text>
+<text x="58" y="362" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Network resources use the provider</text>
+<rect x="435" y="285" width="330" height="120" rx="12" fill="#f5f3ff" stroke="#7c3aed"/>
+<text x="453" y="314" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">eks-lab-terraform-state</text>
+<text x="453" y="340" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Trusts the OpsBox role</text>
+<text x="453" y="362" font-size="15" fill="#475569" font-weight="400" text-anchor="start">State: Get / Put; lock: Get / Put / Delete</text>
+<rect x="830" y="285" width="330" height="120" rx="12" fill="#ecfdf5" stroke="#047857"/>
+<text x="848" y="314" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Network state in S3</text>
+<text x="848" y="340" font-size="15" fill="#475569" font-weight="400" text-anchor="start">network/terraform.tfstate</text>
+<text x="848" y="362" font-size="15" fill="#475569" font-weight="400" text-anchor="start">network/terraform.tfstate.tflock</text>
+<path class="edge" d="M373 345.0 H430"/>
+<path class="edge" d="M768 345.0 H825"/>
+<text x="40" y="435" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Policy simulations: state deletion and unrelated-object Get / Put were implicitly denied for the state role.</text>
+<text x="40" y="485" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">02  NETWORK PROVIDER — infrastructure operations retain OpsBox credentials</text>
+<rect x="40" y="507" width="330" height="114" rx="12" fill="#f5f3ff" stroke="#7c3aed"/>
+<text x="58" y="536" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">AWS provider on OpsBox</text>
+<text x="58" y="562" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Used by terraform/network</text>
+<text x="58" y="584" font-size="15" fill="#475569" font-weight="400" text-anchor="start">AdministratorAccess remains</text>
+<rect x="435" y="507" width="725" height="114" rx="12" fill="#fff7ed" stroke="#c2410c"/>
+<text x="453" y="536" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">14 imported network resources</text>
+<text x="453" y="562" font-size="15" fill="#475569" font-weight="400" text-anchor="start">VPC, four subnets, internet gateway, three route tables,</text>
+<text x="453" y="584" font-size="15" fill="#475569" font-weight="400" text-anchor="start">public default route, and four subnet associations.</text>
+<path class="edge" d="M373 564.0 H430"/>
+<text x="40" y="651" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Retained network: private NAT default routes removed; no NAT or EKS cluster is managed by these roots.</text>
+<text x="40" y="701" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">03  BOOTSTRAP ROOT — retained resources supporting Terraform itself</text>
+<rect x="40" y="723" width="330" height="114" rx="12" fill="#f8fafc" stroke="#94a3b8"/>
+<text x="58" y="752" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">terraform/bootstrap</text>
+<text x="58" y="778" font-size="15" fill="#475569" font-weight="400" text-anchor="start">AWS provider uses OpsBox role</text>
+<text x="58" y="800" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Imports preserve existing settings</text>
+<rect x="435" y="723" width="725" height="114" rx="12" fill="#ecfdf5" stroke="#047857"/>
+<text x="453" y="752" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Nine imported bootstrap resources</text>
+<text x="453" y="778" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Bucket + five S3 configuration resources;</text>
+<text x="453" y="800" font-size="15" fill="#475569" font-weight="400" text-anchor="start">network-backend IAM role, policy, and their attachment.</text>
+<path class="edge" d="M373 780.0 H430"/>
+<text x="40" y="889" font-size="16" fill="#172b35" font-weight="700" text-anchor="start">04  BOOTSTRAP BACKEND — a separate key, accessed with OpsBox credentials</text>
+<rect x="40" y="911" width="330" height="114" rx="12" fill="#f5f3ff" stroke="#7c3aed"/>
+<text x="58" y="940" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Bootstrap backend</text>
+<text x="58" y="966" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Uses OpsBox credentials directly</text>
+<text x="58" y="988" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Local state migrated to S3</text>
+<rect x="435" y="911" width="725" height="114" rx="12" fill="#ecfdf5" stroke="#047857"/>
+<text x="453" y="940" font-size="19" fill="#172b35" font-weight="700" text-anchor="start">Bootstrap state in the same S3 bucket</text>
+<text x="453" y="966" font-size="15" fill="#475569" font-weight="400" text-anchor="start">bootstrap/terraform.tfstate</text>
+<text x="453" y="988" font-size="15" fill="#475569" font-weight="400" text-anchor="start">bootstrap/terraform.tfstate.tflock</text>
+<path class="edge" d="M373 968.0 H430"/>
+<rect x="40" y="1061" width="1120" height="74" rx="12" fill="#ecfdf5" stroke="#047857"/>
+<text x="60" y="1090" font-size="18" fill="#172b35" font-weight="700" text-anchor="start">Bucket controls: versioning · AES256 · Block Public Access · HTTPS-only policy</text>
+<text x="60" y="1115" font-size="16" fill="#475569" font-weight="400" text-anchor="start">SSE-C uploads blocked; BucketOwnerEnforced. Each backend enables native S3 state locking.</text>
+<text x="40" y="1171" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Lifecycle: bootstrap manages its own state bucket. Retain it during lab cleanup; recovery restoration is untested.</text>
+<text x="40" y="1196" font-size="15" fill="#475569" font-weight="400" text-anchor="start">Terraform prevent_destroy guards the configured bucket resource; it does not block AWS administrator actions.</text>
+<text x="40" y="1231" font-size="13" fill="#475569" font-weight="400" text-anchor="start">OWNERSHIP: EKS = eksctl • workload objects = Kubernetes manifests • retained network and backend = Terraform</text>
+</svg>
