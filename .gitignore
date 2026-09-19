@@ -1,4 +1,17 @@
+# Private evidence
 private/
+
+# Terraform working files, state, and saved plans
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+*.tfplan
+crash.log
+crash.*.log
+
+# Misc
+
 .aws/
 .kube/
 .env
