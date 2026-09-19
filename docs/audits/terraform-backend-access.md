@@ -1,53 +1,28 @@
-# Terraform backend access audit
+# Terraform backend access
 
-## Scope
+**Result:** the network backend assumed a dedicated role with separate state and lock-object permissions. Policy simulations allowed the required operations and denied the tested state deletions and unrelated-object access.
 
-This audit evaluated the dedicated IAM role `eks-lab-terraform-state`, used by the Terraform network configuration to access its S3 backend.
+## Implementation and checks
 
-The backend stores state at `network/terraform.tfstate` and uses `network/terraform.tfstate.tflock` for locking.
+The [network backend](../../terraform/network/backend.tf) assumes `eks-lab-terraform-state`. Reconfiguration succeeded, followed by a no-change plan. The [IAM configuration](../../terraform/bootstrap/state-iam.tf) defines these object permissions:
 
-## Implementation
+| Resource | Simulated actions | Decision |
+| --- | --- | --- |
+| `network/terraform.tfstate` | `GetObject`, `PutObject` | `allowed` |
+| Network state | `DeleteObject`, `DeleteObjectVersion` | `implicitDeny` |
+| `network/terraform.tfstate.tflock` | `GetObject`, `PutObject`, `DeleteObject` | `allowed` |
+| Unrelated object | `GetObject`, `PutObject` | `implicitDeny` |
 
-The S3 backend assumes the dedicated state role. Its permissions allow reading and updating the network state object and reading, creating, and deleting the corresponding lock object.
+**Screenshots:** [state-object permissions](../screenshots/31a-state-object-permissions.png) · [lock-object permissions](../screenshots/31b-state-lock-permissions.png). The unrelated-object results are retained in private terminal records under `private/terraform-iam-audit/`.
 
-Backend reconfiguration completed successfully. A subsequent Terraform plan refreshed the managed network resources and reported no changes.
+These were simulations; they did not delete or overwrite S3 objects. The live no-change plan separately checked backend use, but did not demonstrate writing updated infrastructure state.
 
-The configuration was committed in `db526d8`.
+## Remaining boundary
 
-## Permission simulation results
+**The OpsBox still has `AdministratorAccess`.** The AWS provider uses that identity, and it retains direct administrative access outside the narrower backend session.
 
-| Resource | Action | Observed decision |
-|---|---|---|
-| Network state | GetObject | allowed |
-| Network state | PutObject | allowed |
-| Network state | DeleteObject | implicitDeny |
-| Network state | DeleteObjectVersion | implicitDeny |
-| Network lock | GetObject | allowed |
-| Network lock | PutObject | allowed |
-| Network lock | DeleteObject | allowed |
-| Unrelated object | GetObject | implicitDeny |
-| Unrelated object | PutObject | implicitDeny |
+The backend role can overwrite state through `PutObject`. Versioning supports recovery, but restoration has not been tested. Policy simulation also does not cover every possible effective-access path.
 
-These were IAM policy simulations. No S3 objects were deleted or overwritten by the simulations.
+## Operational lesson
 
-## Evidence
-
-- `31a-state-object-permissions.png`
-- `31b-state-lock-permissions.png`
-- Private terminal records in `private/terraform-iam-audit/`
-
-## Interpretation and limitations
-
-The observed simulation results match the intended object permissions. The successful live plan separately demonstrated that Terraform could use the configured backend during a no-change planning operation.
-
-The no-change plan did not demonstrate writing updated infrastructure state. Policy simulation is not a complete test of effective access across all applicable AWS controls.
-
-The role can overwrite the state object through PutObject. Restricting deletion does not make state immutable. Bucket versioning supports recovery, but a version-restoration exercise was not part of this check.
-
-## Remaining administrator access
-
-The OpsBox role still has AdministratorAccess. The AWS provider continues to use that role for infrastructure operations.
-
-Assuming a narrower backend role scopes the backend session. It does not remove the OpsBox role’s direct administrative access to S3 or other AWS services.
-
-A future improvement is to replace routine provisioning access with a separately scoped role, test the required workflows, and then review whether administrator access can be removed from the OpsBox without disrupting its other responsibilities.
+Backend credentials and provider credentials are separate concerns. A future improvement is to test a scoped provisioning role against the required workflows before removing routine administrator access.

@@ -1,57 +1,43 @@
-# Adopting existing AWS infrastructure into Terraform
+# From console configuration to Terraform
 
-## Objective
+**Result:** adopted 23 existing network and backend resources into two Terraform roots. Reviewed import plans preserved the existing resources, and subsequent plans reported no changes.
 
-I first configured the lab through the AWS console and eksctl, then manually wrote Terraform to describe the retained infrastructure. This let me compare the live AWS configuration with its infrastructure-as-code representation.
+I first built the network, bucket, and IAM configuration through the AWS console. Writing the Terraform manually required matching the live configuration and deciding what each root should own. EKS cluster provisioning remained with eksctl.
 
-The EKS clusters were deployed using eksctl. Terraform adoption covered the retained network, state-storage configuration, and dedicated network-backend IAM resources.
+## Ownership
 
-## Configuration boundaries
+| Root | Managed scope | State key |
+| --- | --- | --- |
+| [Network](../../terraform/network/) | 14 resources: VPC, four subnets, internet gateway, three route tables, public default route, four subnet associations | `network/terraform.tfstate` |
+| [Bootstrap](../../terraform/bootstrap/) | Nine resources: bucket, five S3 configuration resources, backend IAM role, policy, and attachment | `bootstrap/terraform.tfstate` |
 
-| Terraform root | Managed resources | Remote state key |
-|---|---|---|
-| `terraform/network` | VPC, four subnets, internet gateway, three route tables, public default route, and four subnet associations | `network/terraform.tfstate` |
-| `terraform/bootstrap` | State bucket, versioning, encryption, public-access block, ownership controls, bucket policy, backend IAM role, permissions policy, and role-policy attachment | `bootstrap/terraform.tfstate` |
+## Adoption workflow and evidence
 
-Both state objects reside in the same versioned S3 bucket. They use separate keys and S3 lock files.
+1. Inventory existing resources and write matching resource blocks.
+2. Declare imports, then review plans for zero additions, changes, or destruction.
+3. Apply the reviewed import plans and check the resulting state addresses.
+4. Run fresh plans to verify configuration agreement.
 
-## Adoption process
+| Stage | Screenshot evidence |
+| --- | --- |
+| VPC | [Import plan](../screenshots/25-terraform-vpc-import-plan.png) · [verification](../screenshots/26-terraform-vpc-import-verified.png) |
+| Subnets and routing | [Subnet verification](../screenshots/27-terraform-subnets-import-verified.png) · [all 14 network resources](../screenshots/28-terraform-routing-import-verified.png) |
+| Bucket and five S3 controls | [Six-resource import plan](../screenshots/32-bootstrap-bucket-import-plan.png) · [import and no-change result](../screenshots/33-bootstrap-bucket-import-verified.png) |
+| Backend IAM | [Three-resource import plan](../screenshots/34-bootstrap-iam-import-plan.png) · [import and no-change result](../screenshots/35-bootstrap-iam-import-verified.png) |
+| Bootstrap state migration | [Encryption, version ID, and no-change result](../screenshots/36-bootstrap-remote-state-verified.png) |
 
-1. Read the existing AWS configuration and retain private inventory records.
-2. Write resource blocks matching the observed settings.
-3. Declare imports mapping existing AWS resources to Terraform addresses.
-4. Review plans for imports with no resource additions, changes, or destruction.
-5. Apply the reviewed import plans.
-6. Run fresh plans to verify that the imported resources match the configuration.
-7. Commit configuration and provider lock files while excluding state, saved plans, and private evidence.
+Configuration and provider lock files are committed. State, saved plans, and raw inventories remain private.
 
-The network root tracks 14 resources. The bootstrap root tracks nine.
+## State and access design
 
-## State and access controls
+Both roots use separate keys and lock objects in one versioned S3 bucket. Bucket controls include AES256 encryption, blocked SSE-C uploads, Block Public Access, bucket-owner-enforced ownership, and HTTPS-only access.
 
-The state bucket has versioning enabled, AES256 default encryption, SSE-C uploads blocked, all four Block Public Access settings enabled, and bucket-owner-enforced object ownership. Its bucket policy denies insecure transport.
+The network backend assumes a dedicated state role. Bootstrap administration and both AWS providers use the OpsBox role, which retains `AdministratorAccess`.
 
-The network backend assumes a dedicated role with read/write access to its state object and read/write/delete access to its lock object. IAM simulations confirmed no grants for state deletion or reading and writing an unrelated object.
+[Ownership diagram](../diagrams/terraform-state-architecture.svg) · [state protection](../audits/terraform-state-protection.md) · [backend permission audit](../audits/terraform-backend-access.md)
 
-Bootstrap administration and AWS provider operations still use the OpsBox role, which retains AdministratorAccess. The narrower network-backend session does not remove that broader access.
+## Lifecycle and lesson
 
-## Bootstrap lifecycle
+Bootstrap state started locally, then moved to S3 after a backup and resource-address comparison. Bootstrap now manages the bucket holding its own state, so cleanup and recovery require deliberate handling. `prevent_destroy` guards the configured resource; it does not restrict AWS administrator actions.
 
-Bootstrap state was initially local, then migrated to the S3 key `bootstrap/terraform.tfstate`. A private local backup was retained, resource addresses were compared, and a subsequent plan reported no changes.
-
-The bootstrap configuration manages the bucket holding its own state. It is retained infrastructure and requires a deliberate recovery or decommissioning process. The bucket's Terraform `prevent_destroy` setting is a configuration safeguard, not an AWS authorization boundary.
-
-## Evidence
-
-- Screenshots 31a and 31b: backend permission simulations.
-- Screenshot 32: bucket import plan.
-- Screenshot 33: bucket import verification.
-- Screenshot 34: IAM import plan.
-- Screenshot 35, or 35a and 35b: IAM import verification.
-- Screenshot 36: bootstrap remote-state verification.
-
-Bootstrap state migration was committed in `da70f50`.
-
-## Scope of the result
-
-No-change plans demonstrate agreement for the resources and attributes managed by these Terraform configurations. They do not establish that every resource in the AWS account is managed, that all access is least privilege, or that recovery from a lost state bucket has been tested.
+A no-change plan establishes agreement for the resources and attributes managed by that root. It does not establish account-wide Terraform coverage, least privilege, or tested state recovery. The practical lesson is to define ownership and verify each adoption step before expanding the managed scope.

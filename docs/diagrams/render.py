@@ -1,6 +1,6 @@
 """Render the EKS portfolio SVGs and Mermaid sketches. Python standard library only.
 
-Edit diagram definitions below, then run: python3 diagrams/render.py
+Edit diagram definitions below, then run: python3 docs/diagrams/render.py
 The SVGs are arranged for reading; Mermaid preserves their labeled relationships.
 """
 from pathlib import Path

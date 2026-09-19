@@ -1,53 +1,33 @@
 # Terraform state protection
 
-## Scope
+**Result:** network state moved from local storage to versioned S3. The retained evidence shows a lock-acquisition failure during contention and a successful no-change result after the test.
 
-Migrated the lab network’s Terraform state from the OpsBox’s local filesystem to a dedicated S3 backend.
+## State configuration
 
-The network configuration manages 14 resources: one VPC, four subnets, one internet gateway, three route tables, one public default route, and four subnet associations.
+| Control | Configuration |
+| --- | --- |
+| State object | `network/terraform.tfstate` for 14 network resources |
+| Encryption and recovery support | SSE-S3 (`AES256`) and bucket versioning |
+| Concurrent access | Native S3 locking: `use_lockfile = true` |
+| Bucket access | Block Public Access and an HTTPS-only policy |
 
-## Backend configuration
+A local backup was retained before migration. The [migration screenshot](../screenshots/29-terraform-remote-state-verified.png) shows encryption, a version ID, and the subsequent no-change plan result.
 
-- State object: `network/terraform.tfstate`
-- Encryption: SSE-S3
-- Bucket versioning: enabled
-- Terraform S3 locking: `use_lockfile = true`
-- Public access: blocked
-- Bucket policy: denies requests using insecure transport
+## Lock-contention exercise
 
-The backend configuration contains no credentials. State files, saved plans, and raw evidence are excluded from Git.
+The recorded procedure was:
 
-## Migration verification
+1. Add a temporary output and hold an interactive apply at its approval prompt.
+2. Check that the lock object exists, then start a competing plan.
+3. Observe failure to acquire the state lock.
+4. Cancel the held apply, remove the test output, and rerun the plan.
 
-The remote state object returned `AES256` encryption and a version ID. Terraform’s subsequent plan reported no changes.
+The [published result excerpt](../screenshots/30-terraform-state-locking.png) shows the acquisition error and the later no-change result. No infrastructure changes were approved, and no force-unlock or manual lock deletion was used.
 
-A private local backup was retained before migration.
+## Evidence limits and next step
 
-## Lock-contention test
+The initial attempt did not establish contention. Private records under `private/state-lock-test/` have filenames that do not consistently match their test stages; the published excerpt is a selection of results, not a complete ordered session transcript.
 
-1. Added a temporary Terraform output.
-2. Started an interactive apply and left it waiting for approval.
-3. Verified that the S3 state-lock object existed.
-4. Started a second plan against the same backend and workspace.
-5. Confirmed that the second plan failed to acquire the state lock.
-6. Cancelled the first apply without approving it.
-7. Removed the temporary output and retried the plan.
-8. Confirmed that the retry completed with no changes.
+Locking protects cooperating Terraform operations. An identity with sufficient S3 permissions can still modify state directly. [Backend permission checks](terraform-backend-access.md) cover that separate access boundary.
 
-No AWS resource changes were applied during the test. No manual lock deletion or force-unlock was needed.
-
-## Evidence
-
-- `29-terraform-remote-state-verified.png`
-- `30-terraform-state-locking.png`
-- Private test logs under `private/state-lock-test/`
-
-## Limitations
-
-The initial console-based attempt did not demonstrate contention; the verified test used an apply waiting for approval.
-
-Versioning was verified, but restoration of an earlier state version has not yet been tested.
-
-This test demonstrates contention between cooperating Terraform processes. It does not prevent someone with sufficient S3 permissions from modifying state directly.
-
-IAM permissions for state access require a separate review.
+Versioning was verified; restoring an earlier state version remains untested. A documented recovery rehearsal is the next step for demonstrating recoverability.

@@ -1,73 +1,34 @@
-# Fargate workload access audit
+# Fargate workload access
 
-## Objective
+**Result:** the Fargate audit Pod read the approved S3 object through its own IAM role. An unrelated read and an attempted write were denied.
 
-Verify that an application running on EKS Fargate can access an approved S3 object through its own IAM role while unrelated reads and writes remain denied.
+## Observed checks
 
-This was a controlled lab exercise using synthetic fixtures.
+| Check inside `ops-lab/aws-audit` | Result |
+| --- | --- |
+| Caller identity | Assumed role `eks-lab-s3-audit-fargate` |
+| Read `allowed/catalog.json` | Succeeded: 32 bytes |
+| Read `unrelated/internal-note.txt` | `AccessDenied` |
+| Write `allowed/fargate-write-test.json` | `AccessDenied` |
 
-## Configuration
+**Screenshots:** [identity and permitted read](../screenshots/24a-fargate-workload-identity-read.png) · [denied read and write](../screenshots/24b-fargate-workload-denied-access.png).
 
-- Cluster: `eks-compute-lab-fargate`
-- Namespace: `ops-lab`
-- Pod: `aws-audit`
-- Kubernetes ServiceAccount: `aws-audit`
-- Workload IAM role: `eks-lab-s3-audit-fargate`
-- Permissions policy: `eks-lab-s3-fixture-read`
-- Fargate profile matching label: `compute: lab`
+The negative-test helper required a failed command **and** an `AccessDenied` response. Other errors did not count as successful permission checks.
 
-The role trust policy names this cluster’s OIDC provider and restricts the subject to `system:serviceaccount:ops-lab:aws-audit`, with audience `sts.amazonaws.com`.
+## Identity boundaries
 
-The permissions policy allows `s3:GetObject` within the fixture bucket’s `allowed/` prefix.
+The audit reused the policy narrowed during the [EC2 audit](workload-s3-access.md), with a separate role and the Fargate cluster's OIDC provider.
 
-## Validation results
+| Identity or selector | Responsibility |
+| --- | --- |
+| Fargate profile: `ops-lab`, `compute: lab` | Determines Pod placement eligibility |
+| Workload IRSA role | Allows `s3:GetObject` under `allowed/`; trust restricts subject to `system:serviceaccount:ops-lab:aws-audit` and audience to `sts.amazonaws.com` |
+| Fargate Pod execution role | Infrastructure duties; separate from the container's S3 permissions |
 
-| Check | Observed result |
-|---|---|
-| Query caller identity inside the Pod | Assumed role `eks-lab-s3-audit-fargate` |
-| Read `allowed/catalog.json` | Succeeded; returned 32 bytes |
-| Read `unrelated/internal-note.txt` | Denied with `AccessDenied` |
-| Write `allowed/fargate-write-test.json` | Denied with `AccessDenied` |
+The execution-role review found the `eks-fargate-pods.amazonaws.com` trust principal, a source ARN restricted to the lab cluster's profiles, and only `AmazonEKSFargatePodExecutionRolePolicy` attached. No inline policies or remediation were identified in that review.
 
-The negative-test helper required both a failed command and an `AccessDenied` response before classifying a test as an expected denial. Other errors were not treated as successful security checks.
+## Scope and lesson
 
-## Comparison with the EC2 audit
+The same intended S3 boundary held across the two compute environments. Scheduling eligibility and workload AWS permissions need separate checks.
 
-The earlier EC2 workload audit demonstrated excessive read access and then narrowed that access.
-
-The Fargate audit reused the restricted policy with a separate workload role and the Fargate cluster’s OIDC provider. It verified that the same intended access boundaries worked with the new compute environment.
-
-The Fargate profile determines where the Pod runs. The ServiceAccount’s IAM role association determines the AWS permissions available to its containers.
-
-The Fargate Pod execution role serves infrastructure operations and is separate from this workload role.
-
-## Evidence
-
-- `24a-fargate-workload-identity-read.png`
-- `24b-fargate-workload-denied-access.png`
-
-Raw identity and API responses are retained privately under `private/fargate-s3-audit/` and excluded from the public repository.
-
-## Limitations
-
-These checks establish the observed behavior for the tested identity, objects, and actions. They are not an exhaustive audit of every AWS permission or possible access path.
-
-No credential values or fixture contents were required in the public screenshots.
-
-## Cleanup
-
-The temporary audit Pod was deleted after preserving the evidence. Its manifests and the ServiceAccount configuration were retained for reproducibility.
-
-## Fargate execution-role review
-
-Reviewed the Pod execution role referenced by the `applications` Fargate profile.
-
-The trust policy allows `sts:AssumeRole` by `eks-fargate-pods.amazonaws.com`. Its `aws:SourceArn` condition restricts the source to Fargate profiles in `eks-compute-lab-fargate`, in the lab account and `us-east-1`.
-
-The role has one attached managed policy, `AmazonEKSFargatePodExecutionRolePolicy`, and no inline policies.
-
-This matches AWS’s documented execution-role configuration. No remediation was identified in the trust and policy-attachment checks performed.
-
-The execution role is separate from `eks-lab-s3-audit-fargate`, which supplies the audit container’s S3 permissions through IRSA.
-
-This finding covers the inspected role, not a comprehensive review of every identity in the cluster.
+These results cover the tested identity, objects, and actions. Raw responses and execution-role inventory remain private. The temporary audit Pod was removed after testing; its [manifests](../../kubernetes/fargate/) remain in the repository.

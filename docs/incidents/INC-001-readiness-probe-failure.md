@@ -1,58 +1,37 @@
-# INC-001: Readiness probe failure during rollout
+# INC-001: Readiness failure during rollout
 
-## Summary
+**Result:** the new Pod failed readiness while the existing replicas remained Ready and sampled Service requests succeeded. Rolling back restored the working revision.
 
-An intentionally injected readiness-probe fault affected a new Pod during an inventory-status rollout on the EC2-backed EKS cluster.
+## Diagnosis and recovery
 
-Kubernetes recorded an HTTP 404 readiness-probe failure. The saved observer snapshots contain no failed Service requests.
+| Step | Observed evidence |
+| --- | --- |
+| Inspect the rollout | New ReplicaSet: one Pod, zero Ready. Previous ReplicaSet: two Pods, both Ready. |
+| Check warnings and traffic | HTTP 404 from the readiness probe; the observer continued recording `OK` requests. |
+| Roll back | `rollout undo` succeeded; rollout completion, `/readyz`, and two Ready application Pods were verified. |
 
-## Recorded timeline
+**Screenshots:** [failed readiness and continuing requests](../screenshots/09-release-diagnosis.png) · [rollback and recovery checks](../screenshots/10-release-recovered.png).
 
-All timestamps are UTC on September 12, 2026.
+The saved known-good revision was `2`. Recovery used:
 
-| Marker | Time |
-|---|---|
-| Fault injection recorded | 08:11:03 |
-| Recovery verification recorded | 08:17:39 |
+```bash
+kubectl rollout undo deployment/inventory-status -n ops-lab --to-revision=2
+kubectl rollout status deployment/inventory-status -n ops-lab --timeout=180s
+```
 
-The interval between these markers was 6 minutes 36 seconds. This is an exercise interval, not a measured outage duration.
+## Recorded observations
 
-## Evidence
+The controlled exercise ran on September 12, 2026. Injection was recorded at **08:11:03 UTC** and recovery verification at **08:17:39 UTC**. That interval includes diagnosis and verification; it is not an outage measurement.
 
-- The saved known-good Deployment revision was `2`.
-- Events show creation and startup of a Pod in ReplicaSet `inventory-status-6c75c5cddd`.
-- That Pod subsequently generated: `Readiness probe failed: HTTP probe failed with statuscode: 404`.
-
-| Observer snapshot | OK | FAIL |
-|---|---:|---:|
+| Retained observer snapshot | OK | FAIL |
+| --- | ---: | ---: |
 | Before recovery | 439 | 0 |
 | After recovery | 660 | 0 |
 
-These snapshots may overlap and must not be added together.
+The snapshots overlap and must not be added. Full logs remain private under `private/inc-001/`. The exact faulty probe path is not retained; the event records its HTTP 404 response.
 
-## Diagnosis
+## Operational lesson
 
-The new Pod started, but its readiness check failed. This distinguishes container startup from readiness to receive application traffic.
+A Pod can start successfully and still be unready for traffic. Check both rollout progress and Service requests; neither alone describes the whole incident. [Kubernetes probe behavior](https://kubernetes.io/docs/concepts/workloads/pods/probes/)
 
-A failed readiness check makes a Pod unready; it does not by itself restart the container. Readiness is intended to control whether the Pod receives Service traffic. [Kubernetes probe documentation](https://kubernetes.io/docs/concepts/workloads/pods/probes/)
-
-The successful observer requests are consistent with existing healthy replicas continuing to serve traffic while the new revision failed readiness.
-
-## Recovery and outcome
-
-A known-good revision was retained for recovery, and recovery verification was recorded at 08:17:39 UTC.
-
-The retained excerpts do not contain the exact recovery command or a post-recovery Deployment status table. They support a readiness failure and no observed request failures in the saved observer snapshots, rather than an exact reconstruction of every recovery action.
-
-## Improvements
-
-- Test health-check paths before deploying a revision.
-- Retain the fault patch, rollout status, recovery command, and final Deployment status.
-- Record observer timestamps alongside injection and recovery markers.
-- Validate application availability independently of rollout success.
-
-## Evidence records
-
-Private records are retained under `private/inc-001/`: the event snapshot, known-good revision, injection and recovery markers, and observer logs.
-
-This was a controlled lab exercise. Successful sampled requests do not establish an availability guarantee.
+For the next run, capture the fault patch and test health paths before rollout. After an emergency rollback, reconcile the declarative configuration before applying it again.

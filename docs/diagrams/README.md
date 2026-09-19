@@ -1,62 +1,56 @@
-# EKS architecture diagrams
+# Architecture diagrams
 
-These diagrams describe an independent lab using the configuration and terminal evidence retained during the project. They are logical views, not live AWS inventory.
+These are logical views of the recorded lab. The EC2 and Fargate clusters ran sequentially and were later removed; the Terraform view describes retained infrastructure.
 
 ## Deployment phases
 
-![EC2 and Fargate deployment phases, management access, internal Service requests, outbound networking, and workload identity.](eks-compute-architecture.svg)
+![EC2 and Fargate deployment phases, networking, and workload identity](eks-compute-architecture.svg)
 
-[Open the full-size diagram](eks-compute-architecture.svg) · [Mermaid topology sketch](eks-compute-architecture.mmd)
+[Full-size SVG](eks-compute-architecture.svg) · [Mermaid topology sketch](eks-compute-architecture.mmd)
 
-Read each numbered lane from left to right:
+| Lane | How to read it |
+| --- | --- |
+| Management | The OpsBox reaches the EKS public API through an egress `/32` allowlist. Private endpoints were also enabled. Audit and authenticator logs had one-day retention. |
+| EC2 | The observer requests the ClusterIP Service, which selects eligible application Pods on the worker pool. The Service is a logical routing abstraction. |
+| Fargate | The same request pattern uses Pods selected by the `ops-lab`, `compute=lab` profile. A separate profile selected `kube-system`. |
+| Egress | Private default routes used one zonal NAT and an internet gateway. Internal Service requests do not use that path. The NAT and private default routes were later removed. |
+| Workload identity | The audit ServiceAccount obtains role credentials through STS, then calls S3. The role arrow represents authorization. Each cluster had its own OIDC trust. |
 
-1. **Management:** the OpsBox uses the EKS public API endpoint. Each cluster also had private endpoint access enabled. EKS audit and authenticator logs were enabled in CloudWatch with one-day retention.
-2. **EC2:** an observer sends HTTP requests through the application ClusterIP Service to eligible application Pods on a two-node managed worker pool. The service diagram is logical; it does not represent the Service as a separate proxy process. Pod placement changed during the exercises.
-3. **Fargate:** the application uses the same Service request pattern, while profile selectors determine eligibility for Fargate placement. The applications profile selected `ops-lab` Pods with `compute=lab`; a separate profile selected `kube-system`.
-4. **Egress:** private subnet default routes used a single NAT gateway in public subnet A and an internet gateway. This represents the deployed lab phase. The NAT and its private default routes were later removed. Internal Service requests do not travel through this NAT path.
-5. **Workload identity:** the audit Pod's ServiceAccount token was used to obtain role credentials through STS. The workload then called S3 with those credentials. The arrow through the role represents authorization, not an IAM service proxying S3 traffic. Each cluster had its own OIDC trust configuration.
+Two subnets did not guarantee balanced replica placement: EC2 maintenance records show replicas sharing a worker. Fargate's execution role was separate from the workload's S3 role.
 
-The EC2 and Fargate clusters were deployed sequentially and subsequently deleted. This map does not imply they ran concurrently. Subnets spanned two availability zones, but this does not establish balanced application placement. EC2 incident evidence explicitly shows replicas sharing a node.
+## Terraform ownership and access
 
-The audit used synthetic S3 objects. The hardened workload policy allowed reads from `allowed/*`; observed checks denied an unrelated object read and an attempted write. The Fargate Pod execution role was separate from the workload's IRSA role.
+![Terraform roots, backend credentials, and retained resources](terraform-state-architecture.svg)
 
-## Terraform and state
+[Full-size SVG](terraform-state-architecture.svg) · [Mermaid topology sketch](terraform-state-architecture.mmd)
 
-![Separate network and bootstrap roots, provider credentials, network state role, and S3 state objects.](terraform-state-architecture.svg)
+| Root | Resources | Backend access |
+| --- | --- | --- |
+| Network | 14 imported network resources | Dedicated role; `network/terraform.tfstate` and its lock |
+| Bootstrap | Nine bucket, S3 control, and IAM resources | OpsBox credentials; `bootstrap/terraform.tfstate` and its lock |
 
-[Open the full-size diagram](terraform-state-architecture.svg) · [Mermaid topology sketch](terraform-state-architecture.mmd)
+Both providers retain OpsBox administrator credentials. Both state objects share a versioned bucket, which bootstrap itself manages. State migration and no-change plans were recorded; version restoration remains untested. `prevent_destroy` is a Terraform safeguard, not an AWS permission boundary.
 
-- The network root tracks 14 imported network resources. Its backend assumes the dedicated state role. Its AWS provider still uses the OpsBox role.
-- The bootstrap root tracks the bucket and five S3 configuration resources, plus the network-backend IAM role, policy, and attachment: nine resources in total.
-- Network and bootstrap state have separate keys and lock objects in the same versioned S3 bucket. Bootstrap uses OpsBox credentials directly.
-- State migration and subsequent no-change plans were completed. Bucket version restoration has not been exercised.
-- The bootstrap root manages the bucket that holds its own state. The bucket is retained infrastructure. Terraform's `prevent_destroy` is not an AWS access-control boundary.
-- The OpsBox role retains AdministratorAccess. Narrowing the network backend session does not remove that broader access. Simulation results describe the tested role policy, not every possible effective permission path.
+[Read the adoption case study](../architecture/terraform-adoption.md)
 
 ## Edit and regenerate
 
-`render.py` is the editable source for both diagrams. It uses only the Python standard library and produces SVGs plus Mermaid sketches from the same node and edge definitions.
-
-From the repository root:
+`render.py` uses the Python standard library to generate SVGs and Mermaid sketches from shared node and edge definitions. From the repository root:
 
 ```bash
-python3 diagrams/render.py
-git diff -- diagrams
+python3 docs/diagrams/render.py
+git diff -- docs/diagrams
 ```
 
-Edit labels in `compute()` or `state()`, regenerate, then inspect the SVG at full size. Keep labels within their boxes. The Mermaid sketches preserve the main relationships but omit some explanatory SVG annotations; they are not exact-layout sources for the SVGs.
+Edit `compute()` or `state()`, regenerate, and inspect the SVGs at full size for label overflow. Mermaid sketches preserve the main relationships but omit some SVG annotations. PNG copies are not regenerated by this script.
 
-The SVGs use a white canvas and system fonts, contain no external images or scripts, and omit AWS account IDs, resource IDs, public IPs, and bucket names. They are intended for GitHub embedding and the recorded walkthrough. Text remains selectable in the SVGs.
+The SVGs use system fonts, selectable text, and no external images or scripts. Account IDs, resource IDs, public IPs, and bucket names are omitted.
 
-## Explain the design yourself
+## Walkthrough prompts
 
-Before recording, practice answering:
+- Why can a rollout stall while Service requests succeed?
+- How do Service selectors and Fargate profiles affect different parts of deployment?
+- Why does a scoped backend role leave provider administrator access unchanged?
+- What remains after cluster teardown, and how would you recover its state?
 
-1. Why can a rollout fail while requests to the Service continue succeeding?
-2. Why does the internal request path not use the NAT gateway?
-3. How do Fargate profile selectors differ from Service selectors?
-4. Why are a Fargate execution role and a workload IRSA role separate?
-5. Why does a scoped Terraform backend role not make an administrator-run provider least privilege?
-6. What remains deployed after the lab clusters and NAT are deleted?
-
-Each answer should connect the diagram to a manifest, policy, incident report, or saved result. Diagrams illustrate those records; they do not replace evidence.
+Connect each answer to a manifest, incident, audit, or screenshot.

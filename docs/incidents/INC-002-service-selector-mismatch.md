@@ -1,59 +1,42 @@
 # INC-002: Service selector mismatch
 
-## Summary
+**Result:** both application Pods stayed Ready, but an incorrect Service selector removed their endpoints and requests failed. Restoring the selector recovered access.
 
-This controlled exercise changed the inventory-status Service selector so that it no longer matched the intended application Pods.
+## Diagnosis and recovery
 
-The saved observer logs contain failed requests, demonstrating an application access problem during the exercise. Recovery verification was subsequently recorded.
+| Check | During the fault | After recovery |
+| --- | --- | --- |
+| Application Pods | Two Pods `1/1 Running` | Application endpoints available again |
+| Service selector | `app: inventory-status-mismatch` | `app: inventory-status` |
+| EndpointSlice | Endpoints and ports shown as `<unset>` | Two application addresses on port 8080 |
+| Observer | Connection refused; `FAIL` | Timestamped `OK` requests |
 
-## Recorded timeline
+**Screenshots:** [fault, healthy Pods, and empty endpoints](../screenshots/11-service-selector-failure.png) · [corrected selector, endpoints, and requests](../screenshots/12-service-selector-recovered.png).
 
-All timestamps are UTC on September 12, 2026.
+Recovery restored the label selected by the Service:
 
-| Marker | Time |
-|---|---|
-| Fault injection recorded | 08:21:29 |
-| Recovery verification recorded | 08:25:23 |
+```bash
+kubectl patch service inventory-status -n ops-lab --type=merge \
+  -p '{"spec":{"selector":{"app":"inventory-status"}}}'
+kubectl get endpointslices -n ops-lab \
+  -l kubernetes.io/service-name=inventory-status
+```
 
-The interval between these markers was 3 minutes 54 seconds. It includes the exercise and verification work; it is not a measured outage duration.
+## Recorded observations
 
-## Evidence
+This controlled exercise took place on September 12, 2026:
 
-The saved original Service configuration contains:
+| Marker | UTC |
+| --- | --- |
+| Fault injection | 08:21:29 |
+| First failed sample in the retained log | 08:21:30 |
+| First successful sample after those failures | 08:24:39 |
+| Recovery verification | 08:25:23 |
 
-- Type: `ClusterIP`
-- Selector: `app: inventory-status`
-- Target port: `http`
+The final saved log contains **933 OK and 91 FAIL** entries, including history before recovery. Its timestamps show the observed request transition; the count and verification interval are not exact outage measurements. Raw records remain under `private/inc-002/`.
 
-| Observer snapshot | OK | FAIL |
-|---|---:|---:|
-| Before recovery | 889 | 89 |
-| After recovery | 933 | 91 |
+## Operational lesson
 
-These are whole-file counts. The snapshots may overlap and must not be summed. Failed-request counts cannot be converted directly into outage seconds.
+When Pods look healthy but requests fail, inspect the Service selector and EndpointSlices together. [Kubernetes Service behavior](https://kubernetes.io/docs/concepts/services-networking/service/)
 
-## Diagnosis
-
-A selector-based Service identifies its backend Pods through matching labels. An incorrect selector can break access through the Service even when application containers remain operational. [Kubernetes Service documentation](https://kubernetes.io/docs/concepts/services-networking/service/)
-
-The baseline configuration identifies the intended selector. The retained excerpts do not include the faulty selector value or an EndpointSlice snapshot from the failure period.
-
-## Recovery and verification
-
-The recovery approach for this injected fault was to restore the intended Service selector and verify application access. A recovery-verification marker was recorded at 08:25:23 UTC.
-
-The after-recovery file still contains failure entries. Since this is a saved log snapshot, those entries alone do not establish that failures continued after recovery. Timestamped request records are needed to identify the precise failure interval and last failed request.
-
-## Improvements
-
-- Review Service selectors and Pod labels together.
-- Include an EndpointSlice check in the troubleshooting runbook.
-- Test through the Service as well as checking Pod health.
-- Retain the faulty configuration and the corrected configuration.
-- Capture a bounded observation window with timestamps around recovery.
-
-## Evidence records
-
-Private records are retained under `private/inc-002/`: the original Service YAML, injection and recovery markers, and observer logs.
-
-This report documents a controlled lab fault. It does not claim a precisely measured outage duration or production incident impact.
+A useful follow-up is a configuration check that verifies Service selectors match the intended Pod labels, plus a request check through the Service after deployment.

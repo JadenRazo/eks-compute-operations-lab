@@ -1,152 +1,98 @@
 # EKS Compute Operations Lab
 
-An independent AWS lab comparing **EKS managed EC2 nodes and AWS Fargate** through application deployment, controlled failure exercises, access audits, and manual adoption of existing infrastructure into Terraform.
+I built an AWS lab through the console and eksctl, ran the same Kubernetes workload on **EC2 and Fargate**, and adopted the retained infrastructure into **Terraform**. The focus was operating the environment: diagnose failures, test access boundaries, recover, and verify the result.
 
-The project follows an operational workflow: build the environment, introduce a controlled fault, collect evidence, diagnose the behavior, recover, and document the result.
+## What I demonstrated
 
-## Project status
+| Skill | Result | Explore the evidence |
+| --- | --- | --- |
+| Kubernetes troubleshooting | Investigated failures and verified recovery across four controlled exercises. | [Service failure and recovery](docs/incidents/INC-002-service-selector-mismatch.md) |
+| AWS and Kubernetes access control | Restricted reader access and removed an unnecessary S3 read permission while preserving the required read. | [S3 before/after audit](docs/audits/workload-s3-access.md) · [reader audit](docs/audits/reader-access.md) |
+| Adopting infrastructure as code | Imported 23 existing network and backend resources; subsequent plans reported no changes. | [Terraform adoption](docs/architecture/terraform-adoption.md) · [IAM import result](docs/screenshots/35-bootstrap-iam-import-verified.png) |
 
-The EC2 and Fargate cluster exercises are complete, and both lab clusters were removed. The lab NAT gateway and its Elastic IP were also removed.
+**[Browse the screenshot evidence](docs/screenshots/README.md)** for deployment, incident, access, and Terraform results.
 
-The retained network, Terraform state bucket configuration, and network-backend IAM resources are managed through Terraform. Network and bootstrap state use separate objects in a versioned S3 bucket with state locking.
+## How I built it
 
-Final cost reconciliation, the recorded walkthrough, and publication materials remain outstanding.
+| Tool | Responsibility |
+| --- | --- |
+| AWS console | Initial network, S3, and IAM configuration |
+| eksctl | Sequential EC2-backed and Fargate EKS clusters |
+| Kubernetes + Kustomize | Application, health probes, access controls, observer, and Fargate overlay |
+| Terraform | Adoption of the retained network, state bucket configuration, and backend IAM resources |
+
+The `inventory-status` workload serves synthetic data through an internal ClusterIP Service. It has two replicas, pinned container images, non-root execution, health probes, and a PodDisruptionBudget. A separate observer records timestamped request results.
+
+## EC2 and Fargate in this lab
+
+| Area | Managed EC2 nodes | Fargate |
+| --- | --- | --- |
+| Compute configuration | Two `t3.medium` workers in private subnets | Profiles select system and application Pods |
+| Application configuration | Shared base with a soft zone-spread preference | Overlay removes that preference and matches resource requests to limits |
+| Operational exercise | Drain a worker while respecting the disruption budget | Recover a rollout whose Pod label no longer matches its profile |
+| Workload identity | Dedicated IRSA role for the S3 audit | Separate IRSA role with the same restricted policy |
+
+This comparison covers configuration and operational behavior. Performance benchmarking and a verified cost comparison were outside the completed work.
+
+## Failure exercises
+
+| Controlled fault | Observed result | Lesson |
+| --- | --- | --- |
+| [Readiness failure](docs/incidents/INC-001-readiness-probe-failure.md) | New Pod unready; rollback completed; saved observer snapshots had no failures. | Check rollout progress and request availability separately. |
+| [Service selector mismatch](docs/incidents/INC-002-service-selector-mismatch.md) | Healthy Pods, empty Service endpoints, failed requests; restoring the selector recovered access. | Pod health alone does not prove a working Service. |
+| [Node drain and PDB](docs/incidents/INC-003-node-drain-pdb.md) | Eviction temporarily rejected; drain completed; worker uncordoned. | Verify replacement capacity and replica placement during maintenance. |
+| [Fargate profile mismatch](docs/incidents/INC-004-fargate-profile-mismatch.md) | Rollout timed out; restoring the matching label completed it. | Profile eligibility is part of deployment correctness. |
+
+Reports distinguish screenshots, retained logs, and summaries. Sampled requests and exercise intervals are not availability guarantees or exact outage durations.
 
 ## Architecture
 
-### EC2 and Fargate deployment phases
+The clusters ran in separate phases and were later deleted. The deployment diagram shows those historical environments; the Terraform diagram shows retained infrastructure.
 
-The clusters were deployed sequentially. This diagram describes the historical lab deployments, including management access, internal application requests, outbound connectivity, and workload identity.
+<details>
+<summary>View the deployment diagram</summary>
 
-![Historical EKS deployment phases, request paths, networking, and workload identity](docs/diagrams/eks-compute-architecture.svg)
+![Historical EKS deployment phases, networking, and workload identity](docs/diagrams/eks-compute-architecture.svg)
 
-[View the full-size deployment diagram](docs/diagrams/eks-compute-architecture.svg)
+</details>
 
-### Terraform ownership and state access
-
-This diagram describes the retained infrastructure, separate Terraform roots, and the distinction between backend credentials and provider credentials.
+<details>
+<summary>View Terraform ownership and state access</summary>
 
 ![Terraform roots, backend access, and retained infrastructure](docs/diagrams/terraform-state-architecture.svg)
 
-[View the full-size Terraform diagram](docs/diagrams/terraform-state-architecture.svg)
+</details>
 
-[Diagram explanations, editable source, and regeneration instructions](docs/diagrams/README.md)
+[Diagram explanations and editable source](docs/diagrams/README.md)
 
-## Implementation scope
+## Further access and state checks
 
-| Area | Implementation |
-|---|---|
-| Initial network, bucket, and IAM configuration | AWS console |
-| EC2-backed and Fargate EKS clusters | eksctl |
-| Application, Service, probes, and Kubernetes access controls | Kubernetes manifests |
-| Fargate application adaptation | Kustomize overlay |
-| Retained network and backend infrastructure | Manually written Terraform with imports |
-| Verification | AWS CLI, kubectl, request observer, saved logs, and policy simulations |
+- [EC2 infrastructure](docs/audits/infrastructure-access.md): worker permissions, VPC CNI identity, and metadata access tests.
+- [Fargate workload access](docs/audits/fargate-workload-access.md): allowed reads, denied operations, and execution-role separation.
+- [Terraform state protection](docs/audits/terraform-state-protection.md): S3 migration and lock contention.
+- [Terraform backend access](docs/audits/terraform-backend-access.md): state and lock-object permission simulations.
 
-The application is a small `inventory-status` HTTP workload with two replicas, health probes, and an internal ClusterIP Service. A separate observer records timestamped request successes and failures.
+## Current state and remaining work
 
-EKS provisioning remains represented by the eksctl configurations. Terraform adoption covered the retained network and backend resources.
+Both lab clusters, the NAT gateway, and its Elastic IP were removed. The network, versioned S3 state bucket, and backend IAM resources remain under Terraform management.
 
-## Controlled incident exercises
+The OpsBox provisioning role still has `AdministratorAccess`. State-version restoration remains untested, and bootstrap manages the bucket holding its own state. These are documented limits of this independent lab.
 
-These were intentionally injected lab scenarios.
+Final cost reconciliation, the recorded walkthrough, and public release remain outstanding. **$20 was the project budget target, not verified spend.** The cost review must include the OpsBox, retained storage, and logs. One zonal NAT gateway was a deliberate lab cost/availability tradeoff.
 
-| Incident | Exercise | Retained evidence |
-|---|---|---|
-| [INC-001](docs/incidents/INC-001-readiness-probe-failure.md) | Readiness-probe failure during rollout | Kubernetes recorded an HTTP 404 readiness failure; both saved observer snapshots contained zero failed requests. |
-| [INC-002](docs/incidents/INC-002-service-selector-mismatch.md) | Service selector mismatch | Saved request logs contained failures; the original selector and recovery-verification marker were retained. |
-| [INC-003](docs/incidents/INC-003-node-drain-pdb.md) | Node maintenance with a PodDisruptionBudget | An eviction was temporarily rejected, the drain retried and completed, and replacement application Pods were Ready on the other worker. |
-| [INC-004](docs/incidents/INC-004-fargate-profile-mismatch.md) | Fargate profile mismatch | The rollout timed out after the Pod label stopped matching the profile; the recorded observer window contained 339 successful requests and zero failures. |
+## Code and reuse
 
-Observer snapshots can overlap. Request counts are not added across overlapping files or converted directly into outage durations. Successful sampled requests do not establish an availability guarantee.
+[Cluster configurations](eksctl/) · [Kubernetes manifests](kubernetes/) · [Network Terraform](terraform/network/) · [Bootstrap Terraform](terraform/bootstrap/)
 
-## Access and security work
+These files record this lab environment and need adaptation before deployment elsewhere. Private logs, Terraform state, and saved plans are excluded from version control.
 
-The lab examined several distinct permission boundaries:
+<details>
+<summary>Reproduction prerequisites</summary>
 
-- **Human access:** namespace-scoped Kubernetes reader permissions and allowed/denied operation checks.
-- **Workload access:** IRSA credentials for a synthetic S3 audit, followed by narrower object permissions and repeat access checks.
-- **Worker access:** node-role policies, separate VPC CNI identity, and IMDS configuration and runtime observations.
-- **Fargate identity:** separation between the Pod execution role and the workload's IRSA role.
-- **Terraform state access:** a dedicated network-backend role with state and lock-object permissions, plus IAM policy simulations.
+- Replace account IDs, resource IDs, role ARNs, and the EKS endpoint allowlist.
+- Restore private-subnet egress before rebuilding either cluster.
+- Update cluster-specific OIDC trust and the maintenance observer's worker selector.
+- Supply existing backend buckets and authorized credentials before initializing the committed S3 backends.
+- Review Terraform plans and cleanup ownership, including the retained state bucket.
 
-Detailed reports:
-
-- [Kubernetes reader access](docs/audits/reader-access.md)
-- [Workload S3 access](docs/audits/workload-s3-access.md)
-- [Infrastructure access](docs/audits/infrastructure-access.md)
-- [Fargate workload access](docs/audits/fargate-workload-access.md)
-- [Terraform backend access](docs/audits/terraform-backend-access.md)
-- [Terraform state protection](docs/audits/terraform-state-protection.md)
-
-**Remaining access limitation:** the OpsBox role retains `AdministratorAccess`. Narrowing the network-backend session does not remove the OpsBox role's broader permissions or make provider operations least privilege.
-
-## From console configuration to Terraform
-
-Existing resources were inventoried, described manually in Terraform, and imported using reviewed plans. Subsequent plans reported no changes.
-
-| Terraform root | Managed scope | State key |
-|---|---|---|
-| `terraform/network` | 14 resources: VPC, four subnets, internet gateway, three route tables, public default route, and four subnet associations | `network/terraform.tfstate` |
-| `terraform/bootstrap` | Nine resources: bucket, five S3 configuration resources, backend IAM role, permissions policy, and attachment | `bootstrap/terraform.tfstate` |
-
-The state bucket uses versioning, AES256 encryption, blocked SSE-C uploads, bucket-owner-enforced ownership, Block Public Access, and an HTTPS-only policy.
-
-Bootstrap manages the bucket holding its own state. It is retained infrastructure and requires deliberate recovery and decommissioning procedures.
-
-[Read the Terraform adoption and state architecture report](docs/architecture/terraform-adoption.md)
-
-## Repository layout
-
-```text
-docs/
-  architecture/       Terraform adoption and design documentation
-  audits/             Access and state-protection reports
-  diagrams/           SVGs, Mermaid sketches, and diagram generator
-  incidents/          Controlled failure and maintenance reports
-eksctl/               EC2 and Fargate cluster configurations
-kubernetes/
-  base/               Shared application and access manifests
-  ec2/                EC2-specific maintenance configuration
-  fargate/            Fargate overlay and audit workloads
-terraform/
-  network/            Retained network configuration and imports
-  bootstrap/          State bucket and backend IAM configuration
-```
-
-Private logs, Terraform state, and saved plans are excluded from version control.
-
-## Reproduction considerations
-
-These configurations describe this lab environment and require adaptation before use elsewhere.
-
-- Review account IDs, subnet IDs, IAM role ARNs, and the EKS endpoint allowlist.
-- Restore the required private-subnet egress before rebuilding either cluster.
-- Update cluster-specific OIDC trust relationships when recreating EKS.
-- Update any EC2 observer node selector that references a previous worker hostname.
-- Existing backend buckets and authorized credentials are prerequisites for initializing the committed S3 backends.
-- Review Terraform plans and cleanup ownership before applying changes.
-
-## Tradeoffs and lessons
-
-- **Readiness and availability are different signals.** A new revision can fail readiness while existing replicas continue serving requests.
-- **Healthy Pods do not guarantee a working Service.** Labels, selectors, and eligible endpoints must agree.
-- **A PDB constrains voluntary disruption.** It does not guarantee resilience to node failure.
-- **Two nodes or two subnets do not prove balanced replica placement.** The EC2 maintenance evidence showed replicas sharing a node.
-- **Fargate shifts operational responsibility.** Profile selection and workload identity still require deliberate configuration.
-- **Importing infrastructure requires configuration matching.** A no-change plan applies to the resources and attributes managed by that Terraform root.
-
-## Cost and remaining work
-
-The project allowance is **$20 across all sessions and rebuilds**. This is a budget target, not a verified final spend.
-
-The deployed lab used one zonal NAT gateway as a cost and availability tradeoff. Cluster and NAT teardown does not establish that every remaining AWS resource is free; the OpsBox, retained storage, and logs must be included in the cost review.
-
-Remaining work:
-
-- Reconcile actual spending and document retained resources.
-- Review public evidence and repository links.
-- Record the architecture and incident walkthrough.
-- Publish the project summary.
-
-This repository documents independent lab experience. It does not represent operation of a production EKS environment.
+</details>
