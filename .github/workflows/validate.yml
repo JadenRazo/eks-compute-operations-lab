@@ -1,0 +1,38 @@
+name: Validate configuration
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  configuration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.7"
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive terraform
+
+      - name: Validate Terraform roots without a backend
+        shell: bash
+        run: |
+          for root in terraform/network terraform/bootstrap; do
+            terraform -chdir="$root" init -backend=false -input=false -lockfile=readonly
+            terraform -chdir="$root" validate -no-color
+          done
+
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.36.0"
+
+      - name: Render Kubernetes configurations
+        run: |
+          kubectl kustomize kubernetes/base > /dev/null
+          kubectl kustomize kubernetes/fargate > /dev/null

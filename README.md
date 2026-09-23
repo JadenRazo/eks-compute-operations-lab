@@ -1,16 +1,16 @@
 # EKS Compute Operations Lab
 
-I built an AWS lab through the console and eksctl, ran the same Kubernetes workload on **EC2 and Fargate**, and adopted the retained infrastructure into **Terraform**. The focus was operating the environment: diagnose failures, test access boundaries, recover, and verify the result.
+I built an AWS lab through the console and eksctl, ran the same Kubernetes workload on **EC2 and Fargate**, and adopted the retained infrastructure into **Terraform**. The focus was operating the environment: diagnose failures, test access boundaries, recover, and verify the result. Both EKS clusters were deleted after the exercises; this repository preserves the configuration and evidence.
 
 ## What I demonstrated
 
 | Skill | Result | Explore the evidence |
 | --- | --- | --- |
-| Kubernetes troubleshooting | Investigated failures and verified recovery across four controlled exercises. | [Service failure and recovery](docs/incidents/INC-002-service-selector-mismatch.md) |
+| Kubernetes operations | Investigated four controlled failures, including a Service with healthy Pods but no endpoints and a Fargate profile mismatch. | [Service failure and recovery](docs/incidents/INC-002-service-selector-mismatch.md) · [Fargate recovery](docs/incidents/INC-004-fargate-profile-mismatch.md) |
 | AWS and Kubernetes access control | Restricted reader access and removed an unnecessary S3 read permission while preserving the required read. | [S3 before/after audit](docs/audits/workload-s3-access.md) · [reader audit](docs/audits/reader-access.md) |
 | Adopting infrastructure as code | Imported 23 existing network and backend resources; subsequent plans reported no changes. | [Terraform adoption](docs/architecture/terraform-adoption.md) · [IAM import result](docs/screenshots/35-bootstrap-iam-import-verified.png) |
 
-**[Browse the screenshot evidence](docs/screenshots/README.md)** for deployment, incident, access, and Terraform results.
+For a quick review, follow the [Service incident](docs/incidents/INC-002-service-selector-mismatch.md), the [workload access audit](docs/audits/workload-s3-access.md), and the [Terraform adoption case study](docs/architecture/terraform-adoption.md). Each links the change, observation, and evidence. [Browse all screenshots](docs/screenshots/README.md).
 
 ## How I built it
 
@@ -49,12 +49,7 @@ Reports distinguish screenshots, retained logs, and summaries. Sampled requests 
 
 The clusters ran in separate phases and were later deleted. The deployment diagram shows those historical environments; the Terraform diagram shows retained infrastructure.
 
-<details>
-<summary>View the deployment diagram</summary>
-
 ![Historical EKS deployment phases, networking, and workload identity](docs/diagrams/eks-compute-architecture.svg)
-
-</details>
 
 <details>
 <summary>View Terraform ownership and state access</summary>
@@ -72,19 +67,35 @@ The clusters ran in separate phases and were later deleted. The deployment diagr
 - [Terraform state protection](docs/audits/terraform-state-protection.md): S3 migration and lock contention.
 - [Terraform backend access](docs/audits/terraform-backend-access.md): state and lock-object permission simulations.
 
-## Current state and remaining work
+## Current state and limits
 
 Both lab clusters, the NAT gateway, and its Elastic IP were removed. The network, versioned S3 state bucket, and backend IAM resources remain under Terraform management.
 
 The OpsBox provisioning role still has `AdministratorAccess`. State-version restoration remains untested, and bootstrap manages the bucket holding its own state. These are documented limits of this independent lab.
 
-Final cost reconciliation, the recorded walkthrough, and public release remain outstanding. **$20 was the project budget target, not verified spend.** The cost review must include the OpsBox, retained storage, and logs. One zonal NAT gateway was a deliberate lab cost/availability tradeoff.
+Cost attribution across all lab and shared-account resources was not completed, so this project makes no actual-spend or savings claim. **$20 was a budget target, not verified spend.** One zonal NAT gateway was a deliberate lab cost/availability tradeoff. A recorded walkthrough has not been produced; the linked incident and audit reports provide a written tour.
 
 ## Code and reuse
 
 [Cluster configurations](eksctl/) · [Kubernetes manifests](kubernetes/) · [Network Terraform](terraform/network/) · [Bootstrap Terraform](terraform/bootstrap/)
 
 These files record this lab environment and need adaptation before deployment elsewhere. Private logs, Terraform state, and saved plans are excluded from version control.
+
+### Validate without an AWS deployment
+
+Install Terraform 1.15 and `kubectl` with Kustomize support, then run:
+
+```sh
+terraform fmt -check -recursive terraform
+for root in terraform/network terraform/bootstrap; do
+  terraform -chdir="$root" init -backend=false -input=false -lockfile=readonly
+  terraform -chdir="$root" validate -no-color
+done
+kubectl kustomize kubernetes/base > /dev/null
+kubectl kustomize kubernetes/fargate > /dev/null
+```
+
+The [GitHub Actions workflow](.github/workflows/validate.yml) runs these checks on pushes and pull requests. It checks Terraform configuration and manifest rendering; it does not test live AWS resources, scheduling, or the historical incident results.
 
 <details>
 <summary>Reproduction prerequisites</summary>
